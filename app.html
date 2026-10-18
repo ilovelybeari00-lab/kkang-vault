@@ -237,13 +237,17 @@
       .concat(uniq(all.map(function (x) { return x.subject; })).filter(function (s) { return SUBJECTS.indexOf(s) < 0; }));
     // 학년 줄 : 1학년, 2학년, 3학년 순 (항목의 "grade")
     var grades = uniq(all.map(function (x) { return x.grade; })).sort(function (a, b) { return (parseInt(a, 10) || 9) - (parseInt(b, 10) || 9); });
-    // 학교 · 학년 · 과목 줄은 서로 겹쳐 거른다. 줄마다 숫자는 '다른 줄에서 고른 것' 안에서 센다
+    // 학교 → 학년 → 과목 순서로 좁힌다. 줄마다 숫자는 '위 줄에서 고른 것' 안에서 센다 (아래 줄 선택은 위 줄 숫자에 영향 없음)
     var KEYS = ['school', 'grade', 'subject'];
-    var match = function (x, skip) { return KEYS.every(function (k) { return k === skip || !v[k] || x[k] === v[k]; }); };
-    var list = all.filter(function (x) { return match(x); });
-    var row = function (key, opts, label) {
-      var base = all.filter(function (x) { return match(x, key); });
-      return '<p class="mls-rowlabel">' + label + '</p><div class="mls-filter" style="margin-top:4px">' + [''].concat(opts).map(function (o) {
+    var above = function (key) { return KEYS.slice(0, KEYS.indexOf(key)); };
+    var within = function (x, keys) { return keys.every(function (k) { return !v[k] || x[k] === v[k]; }); };
+    // 위 줄을 바꿔서 아래 줄에서 고른 값이 없어지면 그 줄은 '전체'로 돌린다
+    KEYS.forEach(function (k) { if (v[k] && !all.some(function (x) { return within(x, above(k)) && x[k] === v[k]; })) v[k] = ''; });
+    var list = all.filter(function (x) { return within(x, KEYS); });
+    var row = function (key, opts, label, hideEmpty) {
+      var base = all.filter(function (x) { return within(x, above(key)); });
+      var shown = [''].concat(opts.filter(function (o) { return !hideEmpty || base.some(function (x) { return x[key] === o; }); }));
+      return '<p class="mls-rowlabel">' + label + '</p><div class="mls-filter" style="margin-top:4px">' + shown.map(function (o) {
         var n = o ? base.filter(function (x) { return x[key] === o; }).length : base.length;
         return '<button type="button" data-' + key + '="' + esc(o) + '" aria-pressed="' + ((v[key] || '') === o) + '">' + (o ? esc(o) : '전체') + ' <span style="opacity:.6;font-size:12px">' + n + '</span></button>';
       }).join('') + '</div>';
@@ -259,7 +263,7 @@
       '<div class="mls-stat"><span>시험 회차</span><b>' + uniq(list.map(examOf)).length + '</b></div>' +
       '<div class="mls-stat"><span>킬러 문항</span><b>' + list.filter(function (x) { return lvOf(x) === 'killer'; }).length + '</b></div></div>' +
       '<div class="mls-legend"><span><i style="background:#2f6f5e"></i>일반</span><span><i style="background:#b8860b"></i>준킬러</span><span><i style="background:#c0392b"></i>킬러</span></div></div>' +
-      row('school', schools, '학교') + (grades.length ? row('grade', grades, '학년') : '') + (subjects.length ? row('subject', subjects, '과목') : '') +
+      row('school', schools, '학교') + (grades.length ? row('grade', grades, '학년', true) : '') + (subjects.length ? row('subject', subjects, '과목', true) : '') +
       '<div class="mls-views" role="tablist">' + [['exam', '시험별'], ['level', '난이도별'], ['index', '지수순']].map(function (p) {
         return '<button type="button" role="tab" data-view="' + p[0] + '" aria-selected="' + ((v.view || 'exam') === p[0]) + '">' + p[1] + '</button>';
       }).join('') + '</div>' + detail + body;
