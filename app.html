@@ -270,7 +270,7 @@
     };
     var open = v.open ? all.filter(function (x) { return (x.id || x.title) === v.open; })[0] : null;
     var detail = open ? '<div class="mls-detail" id="mls-detail"><button type="button" class="mls-back" data-open="">← 목록</button>' +
-      '<h5>' + esc(open.title || '') + '</h5><div>' + [L(open.school), open.grade, open.subject, open.diff, idx(open) !== null ? '지수 ' + idx(open) : '', open.kind]
+      '<h5>' + esc(open.title || '') + '</h5><div>' + [L(open.school), open.grade, open.subject, open.unit, open.diff, idx(open) !== null ? '지수 ' + idx(open) : '', open.kind]
         .filter(Boolean).map(function (t) { return '<span class="mls-tag">' + esc(t) + '</span>'; }).join('') + '</div><div class="mls-body" id="mls-detail-body" data-id="' + esc(open._k || open.id || '') + '"></div></div>' : '';
     var body = !list.length ? '<p class="mls-empty" style="margin-top:14px">' + ([v.school, v.grade, v.subject].filter(Boolean).length ? esc([v.school, v.grade, v.subject].filter(Boolean).join(' · ')) + ' 자료는 아직 비어 있어요.' : '아직 정리한 문항이 없어요. 자료가 들어오면 여기에 시험별로 쌓여요.') + '</p>'
       : v.view === 'level' ? byLevel(list) : v.view === 'index' ? byRank(list, v.hard !== false) : byExam(list);
