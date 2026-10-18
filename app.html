@@ -315,6 +315,20 @@
     };
     [].forEach.call($('mls-open').querySelectorAll('.mls-tabs button'), function (b) { b.onclick = function () { show(+b.dataset.tab); }; });
     show(0);
+    // 풀이 안의 연계 링크: data-vault는 금고 안의 다른 풀이로 바로 가고, 블로그 글은 새 창(금고가 잠기지 않게)
+    $('mls-tab').onclick = function (e) {
+      var a = e.target.closest && e.target.closest('.mls-body a[href]');
+      if (!a) return;
+      var id = a.getAttribute('data-vault');
+      if (!id) { a.target = '_blank'; a.rel = 'noopener'; return; }
+      e.preventDefault();
+      var x = items.filter(function (it) { return (it.id || it.title) === id; })[0];
+      if (!x) return;
+      var i = tabs.indexOf(itemTab(x));
+      if (!views[tabs[i]]) show(i);
+      views[tabs[i]].open = id;
+      show(i);
+    };
     $('mls-lock').hidden = true;
     $('mls-open').hidden = false;
     $('mls-close').onclick = function () { $('mls-open').innerHTML = ''; $('mls-open').hidden = true; $('mls-lock').hidden = false; $('mls-pw').value = ''; $('mls-msg').textContent = ''; };
