@@ -112,6 +112,9 @@
 
   // ── 금고 열기: 비밀번호로 개인키를 풀고, 목록(잠긴 칸)을 푼다. 풀이 HTML은 열 때 그 항목만 받아 온다 ──
   var PRIV = null, BODY = {};
+  // 보이는 이름 바꾸기 : 금고 설정(잠긴 cfg)의 labels {원래 이름: 보이는 이름}. 자료에 적힌 이름은 그대로 두고 화면에서만 바꾼다
+  var LABELS = {};
+  var L = function (name) { return LABELS[name] || name; };
   var get = function (p) { return fetch(VAULT + p + '?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(p); return r.json(); }); };
   var INFO = new TextEncoder().encode('kkang-vault-v1');
   function sharedKey(priv, pub) {
@@ -141,7 +144,7 @@
       }).then(function (priv) {
         PRIV = priv;
         return Promise.all([idx.cfg ? openBox(idx.cfg) : {}, Promise.all(idx.items.map(openBox))]);
-      }).then(function (r2) { return { tabs: r2[0].tabs, schools: r2[0].schools, items: r2[1] }; });
+      }).then(function (r2) { LABELS = r2[0].labels || {}; return { tabs: r2[0].tabs, schools: r2[0].schools, labels: LABELS, items: r2[1] }; });
     });
   }
   // 풀이 HTML 받아 오기 (한 번 연 것은 기억)
@@ -157,7 +160,7 @@
 
   function tabBody(items, tab) {
     var list = items.filter(function (x) { return itemTab(x) === tab; });
-    if (!list.length) return '<p class="mls-empty">' + esc(tab) + ' 폴더는 아직 비어 있어요.</p>';
+    if (!list.length) return '<p class="mls-empty">' + esc(L(tab)) + ' 폴더는 아직 비어 있어요.</p>';
     var groups = list.map(function (x) { return x.group || ''; }).filter(function (g, i, a) { return a.indexOf(g) === i; });
     return groups.map(function (g) {
       var inG = list.filter(function (x) { return (x.group || '') === g; });
@@ -193,7 +196,7 @@
     var tip = (x.title || '') + (idx(x) !== null ? ' · 지수 ' + idx(x) : '') + (x.kind ? ' · ' + x.kind : '');
     return '<button type="button" class="mls-chip ' + lvOf(x) + '" data-open="' + esc(x.id || x.title) + '" title="' + esc(tip) + '">' +
       '<b>' + esc(x.no || '·') + '</b>' + (x.subject ? '<em>' + esc(SUBJECT_SHORT[x.subject] || x.subject) + '</em>' : '') +
-      (x.school ? '<i>' + esc(x.school) + '</i>' : '') + (withExam ? '<i>' + esc(examOf(x)) + '</i>' : '') +
+      (x.school ? '<i>' + esc(L(x.school)) + '</i>' : '') + (withExam ? '<i>' + esc(examOf(x)) + '</i>' : '') +
       (withExam && !noIndex && idx(x) !== null ? '<small>' + idx(x) + '</small>' : '') + '</button>';
   }
 
@@ -249,16 +252,16 @@
       var shown = [''].concat(opts.filter(function (o) { return !hideEmpty || base.some(function (x) { return x[key] === o; }); }));
       return '<p class="mls-rowlabel">' + label + '</p><div class="mls-filter" style="margin-top:4px">' + shown.map(function (o) {
         var n = o ? base.filter(function (x) { return x[key] === o; }).length : base.length;
-        return '<button type="button" data-' + key + '="' + esc(o) + '" aria-pressed="' + ((v[key] || '') === o) + '">' + (o ? esc(o) : '전체') + ' <span style="opacity:.6;font-size:12px">' + n + '</span></button>';
+        return '<button type="button" data-' + key + '="' + esc(o) + '" aria-pressed="' + ((v[key] || '') === o) + '">' + (o ? esc(L(o)) : '전체') + ' <span style="opacity:.6;font-size:12px">' + n + '</span></button>';
       }).join('') + '</div>';
     };
     var open = v.open ? all.filter(function (x) { return (x.id || x.title) === v.open; })[0] : null;
     var detail = open ? '<div class="mls-detail" id="mls-detail"><button type="button" class="mls-back" data-open="">← 목록</button>' +
-      '<h5>' + esc(open.title || '') + '</h5><div>' + [open.school, open.grade, open.subject, open.diff, idx(open) !== null ? '지수 ' + idx(open) : '', open.kind]
+      '<h5>' + esc(open.title || '') + '</h5><div>' + [L(open.school), open.grade, open.subject, open.diff, idx(open) !== null ? '지수 ' + idx(open) : '', open.kind]
         .filter(Boolean).map(function (t) { return '<span class="mls-tag">' + esc(t) + '</span>'; }).join('') + '</div><div class="mls-body" id="mls-detail-body" data-id="' + esc(open._k || open.id || '') + '"></div></div>' : '';
     var body = !list.length ? '<p class="mls-empty" style="margin-top:14px">' + ([v.school, v.grade, v.subject].filter(Boolean).length ? esc([v.school, v.grade, v.subject].filter(Boolean).join(' · ')) + ' 자료는 아직 비어 있어요.' : '아직 정리한 기출이 없어요.') + '</p>'
       : v.view === 'level' ? byLevel(list) : v.view === 'index' ? byRank(list, v.hard !== false) : byExam(list);
-    return '<div class="mls-hero"><h4>' + esc(ARCHIVE_TAB) + ' 아카이브</h4><p>학교 기출과 대비 문항을 시험별·난이도별로 모아 두는 곳. 번호를 누르면 풀이가 열려요.</p>' +
+    return '<div class="mls-hero"><h4>' + esc(L(ARCHIVE_TAB)) + ' 아카이브</h4><p>학교 기출과 대비 문항을 시험별·난이도별로 모아 두는 곳. 번호를 누르면 풀이가 열려요.</p>' +
       '<div class="mls-stats"><div class="mls-stat"><span>정리한 문항</span><b>' + list.length + '</b></div>' +
       '<div class="mls-stat"><span>시험 회차</span><b>' + uniq(list.map(examOf)).length + '</b></div>' +
       '<div class="mls-stat"><span>킬러 문항</span><b>' + list.filter(function (x) { return lvOf(x) === 'killer'; }).length + '</b></div></div>' +
@@ -275,7 +278,7 @@
     items.forEach(function (x) { if (tabs.indexOf(itemTab(x)) < 0) tabs.push(itemTab(x)); });
     var bar = '<div class="mls-tabs" role="tablist">' + tabs.map(function (t, i) {
       var n = items.filter(function (x) { return itemTab(x) === t; }).length;
-      return '<button type="button" role="tab" data-tab="' + i + '" aria-selected="' + (i === 0) + '">' + esc(t) + '<small>' + n + '</small></button>';
+      return '<button type="button" role="tab" data-tab="' + i + '" aria-selected="' + (i === 0) + '">' + esc(L(t)) + '<small>' + n + '</small></button>';
     }).join('') + '</div><div id="mls-tab"></div>';
     $('mls-open').innerHTML = '<div class="mls-top"><h3>비밀 폴더</h3><button type="button" id="mls-close">잠그기</button></div>' + bar;
     var view = { school: '', grade: '', subject: '', view: 'exam', hard: true, open: '' };
