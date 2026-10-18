@@ -1,0 +1,314 @@
+<!--
+  비밀 폴더 페이지 v2 (블로그스팟 "페이지"용) — node tools/vault/vault.js page <금고 주소> 로 생성됨. 직접 고치지 말 것.
+  사용법: 블로거 → 페이지 → "비밀 폴더" → HTML 보기 → 전체 붙여넣기 → 게시. 한 번만 붙여 넣으면 된다.
+  자료는 금고(공개 저장소의 암호문)에서 열 때마다 불러온다. 비밀번호 없이는 소스를 봐도, 금고를 봐도 읽을 수 없다.
+-->
+<script>
+  window.MathJax = window.MathJax || { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap">
+<style>
+  .mls { --ink:#1f2a44; --muted:#6b7078; --line:#e3e7e1; --accent:#2f6f5e; --soft:#e4efe9; --hot:#c0392b;
+         font-family:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",sans-serif; color:var(--ink); max-width:760px; margin:0 auto; line-height:1.7; }
+  .mls h3, .mls h4, .mls button { font-family:"Jua","Gowun Dodum",sans-serif !important; font-weight:400 !important; }
+  .mls-lock { background:var(--soft); border-radius:18px; padding:28px 22px; text-align:center; }
+  .mls-lock svg { width:44px; height:44px; }
+  .mls-lock p { color:var(--muted); margin:6px 0 16px; }
+  .mls-form { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  .mls-form input { font-size:18px; letter-spacing:.2em; text-align:center; width:200px; max-width:100%; padding:10px 12px; border:2px solid var(--line); border-radius:12px; background:#fff; color:var(--ink); }
+  .mls-form input:focus { outline:none; border-color:var(--accent); }
+  .mls button { font-size:17px; background:var(--accent); color:#fff; border:0; border-radius:12px; padding:10px 20px; cursor:pointer; }
+  .mls button:disabled { opacity:.6; cursor:wait; }
+  .mls-msg { min-height:1.6em; margin-top:10px; font-size:14px; }
+  .mls-msg.err { color:var(--hot); }
+  .mls-top { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+  .mls-top h3 { font-size:24px !important; margin:0; }
+  .mls-top button { background:#fff; color:var(--ink); border:1.5px solid var(--line); font-size:15px; padding:6px 14px; }
+  .mls-group { margin-top:22px; }
+  .mls-group h4 { font-size:19px !important; margin:0 0 6px; padding-bottom:4px; border-bottom:2px solid var(--accent); }
+  .mls details { border-bottom:1px solid var(--line); padding:10px 2px; }
+  .mls summary { cursor:pointer; font-weight:700; list-style-position:outside; }
+  .mls summary small { font-weight:400; color:var(--muted); margin-left:8px; }
+  .mls-body { padding:10px 0 4px; overflow-x:auto; }
+  .mls-body img { max-width:100%; border-radius:10px; }
+  .mls-empty { color:var(--muted); background:var(--soft); border-radius:14px; padding:18px; text-align:center; }
+  .mls-tabs { display:flex; gap:6px; flex-wrap:wrap; border-bottom:2px solid var(--accent); margin:10px 0 4px; }
+  .mls-tabs button { background:var(--soft); color:var(--ink); border-radius:12px 12px 0 0; padding:8px 16px; font-size:16px; }
+  .mls-tabs button[aria-selected="true"] { background:var(--accent); color:#fff; }
+  .mls-tabs button small { opacity:.75; margin-left:4px; font-size:13px; }
+  /* 수지기출 아카이브: 전체 아카이브 → 학교별 화면 */
+  .mls-hero { padding:12px 0 4px; }
+  .mls-hero h4 { font-size:22px !important; margin:0 0 4px; }
+  .mls-hero p { color:var(--muted); margin:0; font-size:15px; }
+  .mls-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:14px 0 6px; }
+  .mls-stat { background:var(--soft); border-radius:14px; padding:12px 14px; }
+  .mls-stat span { display:block; font-size:13px; color:var(--muted); }
+  .mls-stat b { font-family:"Jua",sans-serif; font-weight:400; font-size:24px; color:var(--accent); }
+  .mls-schools { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin:18px 0 6px; }
+  .mls .mls-school { text-align:left; background:#fff; color:var(--ink); border:1.5px solid var(--line); border-radius:16px; padding:14px 16px; font-size:19px; }
+  .mls .mls-school:hover { border-color:var(--accent); }
+  .mls-school small { display:block; font-family:"Gowun Dodum",sans-serif; color:var(--muted); font-size:13px; margin-top:2px; }
+  .mls .mls-back { background:#fff; color:var(--accent); border:1.5px solid var(--line); font-size:15px; padding:5px 12px; margin-top:12px; }
+  .mls-filter { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .mls .mls-filter button { font-size:15px; border:1.5px solid var(--line); background:#fff; color:var(--ink); border-radius:999px; padding:4px 14px; }
+  .mls .mls-filter button[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .mls-tag { display:inline-block; font-family:"Gowun Dodum",sans-serif; font-weight:400; font-size:12px; background:var(--soft); color:var(--accent); border-radius:999px; padding:0 8px; margin-right:6px; vertical-align:2px; }
+  /* 아카이브 보기 (공개 아카이브와 같은 모양 + 학교 줄) */
+  .mls-legend { display:flex; flex-wrap:wrap; gap:14px; font-size:13px; color:var(--muted); margin-top:6px; }
+  .mls-legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+  .mls-views { display:flex; gap:6px; border-bottom:2px solid var(--accent); margin:14px 0 10px; flex-wrap:wrap; }
+  .mls .mls-views button { font-size:16px; background:var(--soft); color:var(--ink); border-radius:12px 12px 0 0; padding:7px 16px; }
+  .mls .mls-views button[aria-selected="true"] { background:var(--accent); color:#fff; }
+  .mls-rowlabel { font-size:13px; color:var(--muted); margin:10px 0 0; }
+  .mls-year { margin-top:24px; }
+  .mls-year h5 { font-family:"Jua",sans-serif; font-weight:400; font-size:22px; margin:0 0 4px; padding-bottom:6px; border-bottom:2px solid var(--accent); }
+  .mls-year h5 small { font-family:"Gowun Dodum",sans-serif; font-size:13px; color:var(--muted); margin-left:8px; }
+  .mls-exam { display:grid; grid-template-columns:190px 1fr; gap:10px; padding:12px 2px; border-bottom:1px solid var(--line); align-items:start; }
+  .mls-exam-name { font-weight:700; }
+  .mls-chips { display:flex; flex-wrap:wrap; gap:8px; min-width:0; }
+  .mls .mls-chip { display:inline-flex; align-items:center; gap:6px; background:#fff; border:1.5px solid var(--line); border-radius:999px; padding:3px 12px 3px 4px; color:var(--ink); font-family:"Gowun Dodum",sans-serif !important; font-size:14px; cursor:pointer; }
+  .mls .mls-chip:hover { border-color:var(--accent); }
+  .mls-chip b { font-family:"Jua",sans-serif; font-weight:400; background:var(--accent); color:#fff; border-radius:999px; min-width:30px; text-align:center; padding:1px 8px; }
+  .mls-chip.killer b { background:var(--hot); } .mls-chip.semi b { background:#b8860b; }
+  .mls-chip em { font-style:normal; color:var(--muted); font-size:12px; }
+  .mls-chip i { font-style:normal; font-size:12px; color:var(--muted); }
+  .mls-chip small { font-family:"Jua",sans-serif; font-size:12px; color:var(--accent); }
+  .mls-lv { display:inline-block; font-family:"Jua",sans-serif; font-size:13px; color:#fff; border-radius:8px; padding:1px 8px; margin-right:8px; vertical-align:2px; }
+  .mls-rank { display:grid; grid-template-columns:44px 1fr; gap:8px; align-items:center; padding:6px 2px; border-bottom:1px solid var(--line); }
+  .mls-rank > span { font-family:"Jua",sans-serif; font-size:20px; color:var(--accent); text-align:right; }
+  .mls .mls-order { font-size:14px; border:1.5px solid var(--line); background:#fff; color:var(--ink); border-radius:999px; padding:3px 12px; margin-left:8px; vertical-align:3px; }
+  .mls-detail { border:2px solid var(--accent); border-radius:16px; padding:12px 14px; margin:16px 0; background:#fff; }
+  .mls-detail h5 { font-family:"Jua",sans-serif; font-weight:400; font-size:19px; margin:4px 0 8px; }
+  @media (max-width:520px) { .mls-stat b { font-size:20px; } .mls-stats { gap:6px; } .mls-exam { grid-template-columns:1fr; gap:6px; } }
+</style>
+
+<div class="mls">
+  <div class="mls-lock" id="mls-lock">
+    <svg viewBox="0 0 48 48" aria-hidden="true"><rect x="9" y="21" width="30" height="21" rx="6" fill="#2f6f5e"/><path d="M16 21v-6a8 8 0 0 1 16 0v6" fill="none" stroke="#2f6f5e" stroke-width="4" stroke-linecap="round"/><circle cx="24" cy="31" r="3" fill="#fff"/></svg>
+    <h3 style="margin:6px 0 0;font-size:22px;">비밀 폴더</h3>
+    <p>비밀번호를 입력하면 열려요.</p>
+    <form class="mls-form" id="mls-form">
+      <label for="mls-pw" style="position:absolute;left:-9999px;">비밀번호</label>
+      <input id="mls-pw" type="password" autocomplete="current-password" placeholder="••••">
+      <button type="submit" id="mls-go">열기</button>
+    </form>
+    <div class="mls-msg" id="mls-msg" role="status"></div>
+  </div>
+  <div id="mls-open" hidden></div>
+</div>
+
+<script>
+(function () {
+  var VAULT = "https://raw.githubusercontent.com/ilovelybeari00-lab/kkang-vault/main/";   // 금고 주소 (keys.json, index.json, items/<id>.json)
+  // 탭: items.json의 "tabs"가 있으면 그 순서, 없으면 아래 기본값. 항목은 "tab"(없으면 예전 "kind")으로 탭을 고르고, "group"으로 탭 안 폴더를 나눈다
+  var TABS = ['수지기출', '자작문제', '시험지', '풀이', '학생용'];
+  // 아카이브로 보여 줄 탭: 항목의 "school"로 학교 화면을 나누고, "term"(예: 2026 2학기 중간)으로 묶는다.
+  // 학교 목록은 items.json의 "schools"(자료가 없어도 학교 화면이 생김) + 항목에 적힌 학교.
+  var ARCHIVE_TAB = '수지기출';
+  var $ = function (id) { return document.getElementById(id); };
+  var b64 = function (s) { return Uint8Array.from(atob(s), function (c) { return c.charCodeAt(0); }); };
+  var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+
+  // ── 금고 열기: 비밀번호로 개인키를 풀고, 목록(잠긴 칸)을 푼다. 풀이 HTML은 열 때 그 항목만 받아 온다 ──
+  var PRIV = null, BODY = {};
+  var get = function (p) { return fetch(VAULT + p + '?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(p); return r.json(); }); };
+  var INFO = new TextEncoder().encode('kkang-vault-v1');
+  function sharedKey(priv, pub) {
+    return crypto.subtle.deriveBits({ name: 'ECDH', public: pub }, priv, 256).then(function (bits) {
+      return crypto.subtle.importKey('raw', bits, 'HKDF', false, ['deriveKey']);
+    }).then(function (hk) {
+      return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: INFO }, hk, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+    });
+  }
+  function openBox(box) {
+    return crypto.subtle.importKey('raw', b64(box.epk), { name: 'ECDH', namedCurve: 'P-256' }, false, []).then(function (epk) {
+      return sharedKey(PRIV, epk);
+    }).then(function (key) {
+      return crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(box.iv) }, key, b64(box.c));
+    }).then(function (buf) { return JSON.parse(new TextDecoder().decode(buf)); });
+  }
+  function decrypt(pw) {
+    var enc = new TextEncoder();
+    return Promise.all([get('keys.json'), get('index.json')]).then(function (r) {
+      var keys = r[0], idx = r[1], w = keys.wrapped;
+      return crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveKey']).then(function (base) {
+        return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: b64(w.s), iterations: w.n, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+      }).then(function (k) {
+        return crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(w.i) }, k, b64(w.c));
+      }).then(function (buf) {
+        return crypto.subtle.importKey('jwk', JSON.parse(new TextDecoder().decode(buf)), { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
+      }).then(function (priv) {
+        PRIV = priv;
+        return Promise.all([idx.cfg ? openBox(idx.cfg) : {}, Promise.all(idx.items.map(openBox))]);
+      }).then(function (r2) { return { tabs: r2[0].tabs, schools: r2[0].schools, items: r2[1] }; });
+    });
+  }
+  // 풀이 HTML 받아 오기 (한 번 연 것은 기억)
+  function loadBody(id, el) {
+    var done = function (h) { el.innerHTML = h; if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([el]); };
+    if (BODY[id] !== undefined) return done(BODY[id]);
+    el.innerHTML = '<p class="mls-empty">불러오는 중…</p>';
+    get('items/' + id + '.json').then(openBox).then(function (o) { BODY[id] = o.html || ''; done(BODY[id]); })
+      .catch(function () { el.innerHTML = '<p class="mls-empty">풀이를 불러오지 못했어요. 새로고침해 보세요.</p>'; });
+  }
+
+  function itemTab(x) { return x.tab || x.kind || '풀이'; }
+
+  function tabBody(items, tab) {
+    var list = items.filter(function (x) { return itemTab(x) === tab; });
+    if (!list.length) return '<p class="mls-empty">' + esc(tab) + ' 폴더는 아직 비어 있어요.</p>';
+    var groups = list.map(function (x) { return x.group || ''; }).filter(function (g, i, a) { return a.indexOf(g) === i; });
+    return groups.map(function (g) {
+      var inG = list.filter(function (x) { return (x.group || '') === g; });
+      return '<section class="mls-group">' + (g ? '<h4>' + esc(g) + '</h4>' : '') + inG.map(function (x) {
+        return '<details data-load="' + esc(x._k || x.id || '') + '"><summary>' + esc(x.title) + (x.date ? '<small>' + esc(x.date) + '</small>' : '') + '</summary><div class="mls-body"></div></details>';
+      }).join('') + '</section>';
+    }).join('');
+  }
+
+  // ── 아카이브 (공개 아카이브 blogger/archive-page.html과 같은 구조 + 학교 줄) ──
+  // 항목 칸: school, grade(학년), subject, exam(예: 2018 11월 고2 학평 / 2026 2학기 중간), year, no(문항 번호),
+  //          diff(난이도 J1~K5), index(난이도 지수 0~100), kind(성격), title, html. tools/secret_item.py가 만든다.
+  // 과목 줄 순서 (2022 개정 고1 공통 → 선택). 목록에 없는 과목도 자료에 있으면 뒤에 붙는다
+  var SUBJECTS = ['공통수학1', '공통수학2', '대수', '미적분I', '확률과통계', '미적분II', '기하'];
+  var SUBJECT_SHORT = { '공통수학1': '공수1', '공통수학2': '공수2', '대수': '대수', '미적분I': '미적I', '확률과통계': '확통', '미적분II': '미적II', '기하': '기하' };
+  // 문항 번호 순서: 객관식·단답 번호 → 서술형(서1, 서2 …)
+  var noKey = function (x) { var s = String(x.no || ''); var m = s.match(/\d+/); return (/^서/.test(s) ? 1000 : 0) + (m ? +m[0] : 0); };
+  var LEVELS = [
+    { code: 'K5', name: '킬러 5단계', color: '#8e1b10' }, { code: 'K4', name: '킬러 4단계', color: '#a3271a' },
+    { code: 'K3', name: '킬러 3단계', color: '#c0392b' }, { code: 'K2', name: '킬러 2단계', color: '#d0533f' },
+    { code: 'K1', name: '킬러 1단계', color: '#dc6e55' }, { code: 'J3', name: '준킬러 3단계', color: '#9a6f05' },
+    { code: 'J2', name: '준킬러 2단계', color: '#b8860b' }, { code: 'J1', name: '준킬러 1단계', color: '#cfa23a' },
+    { code: '', name: '기본', color: '#2f6f5e' }
+  ];
+  var lvOf = function (x) { return (x.diff || '').charAt(0) === 'K' ? 'killer' : (x.diff || '').charAt(0) === 'J' ? 'semi' : ''; };
+  var yearOf = function (x) { return +x.year || +(String(x.exam || x.term || '').match(/\d{4}/) || [0])[0]; };
+  var examOf = function (x) { return x.exam || x.term || '기타'; };
+  var idx = function (x) { return typeof x.index === 'number' ? x.index : null; };
+  var uniq = function (a) { return a.filter(function (v, i) { return v && a.indexOf(v) === i; }); };
+  var byIndex = function (a, b) { return (idx(a) === null) - (idx(b) === null) || (idx(b) || 0) - (idx(a) || 0); };
+
+  function chip(x, withExam, noIndex) {
+    var tip = (x.title || '') + (idx(x) !== null ? ' · 지수 ' + idx(x) : '') + (x.kind ? ' · ' + x.kind : '');
+    return '<button type="button" class="mls-chip ' + lvOf(x) + '" data-open="' + esc(x.id || x.title) + '" title="' + esc(tip) + '">' +
+      '<b>' + esc(x.no || '·') + '</b>' + (x.subject ? '<em>' + esc(SUBJECT_SHORT[x.subject] || x.subject) + '</em>' : '') +
+      (x.school ? '<i>' + esc(x.school) + '</i>' : '') + (withExam ? '<i>' + esc(examOf(x)) + '</i>' : '') +
+      (withExam && !noIndex && idx(x) !== null ? '<small>' + idx(x) + '</small>' : '') + '</button>';
+  }
+
+  function byExam(list) {
+    var years = uniq(list.map(yearOf)).sort(function (a, b) { return b - a; });
+    if (list.some(function (x) { return !yearOf(x); })) years.push(0);
+    return years.map(function (y) {
+      var inY = list.filter(function (x) { return yearOf(x) === y; });
+      var exams = uniq(inY.map(examOf)).sort().reverse();
+      return '<section class="mls-year"><h5>' + (y || '연도 미상') + '<small>' + inY.length + '문항</small></h5>' + exams.map(function (e) {
+        var l = inY.filter(function (x) { return examOf(x) === e; }).sort(function (a, b) { return noKey(a) - noKey(b); });
+        return '<div class="mls-exam"><div class="mls-exam-name">' + esc(e) + '</div><div class="mls-chips">' + l.map(function (x) { return chip(x); }).join('') + '</div></div>';
+      }).join('') + '</section>';
+    }).join('');
+  }
+
+  function byLevel(list) {
+    return '<section class="mls-year"><h5>난이도 높은 순<small>' + list.length + '문항</small></h5>' + LEVELS.map(function (lv) {
+      var l = list.filter(function (x) { return (x.diff || '') === lv.code; }).sort(byIndex);
+      if (!l.length) return '';
+      return '<div class="mls-exam"><div class="mls-exam-name"><span class="mls-lv" style="background:' + lv.color + '">' + (lv.code || '기본') + '</span>' + lv.name + '</div>' +
+        '<div class="mls-chips">' + l.map(function (x) { return chip(x, true); }).join('') + '</div></div>';
+    }).join('') + '</section>';
+  }
+
+  function byRank(list, hardFirst) {
+    var l = list.filter(function (x) { return idx(x) !== null; }).sort(byIndex);
+    if (!hardFirst) l.reverse();
+    return '<section class="mls-year"><h5>난이도 지수 ' + (hardFirst ? '높은' : '낮은') + ' 순<button type="button" class="mls-order" data-order="1">' +
+      (hardFirst ? '쉬운 것부터 보기' : '어려운 것부터 보기') + '</button></h5>' + l.map(function (x) {
+        var lv = LEVELS.filter(function (v) { return v.code === (x.diff || ''); })[0] || LEVELS[LEVELS.length - 1];
+        return '<div class="mls-rank"><span>' + idx(x) + '</span><div><span class="mls-lv" style="background:' + lv.color + '">' + (lv.code || '기본') + '</span>' +
+          chip(x, true, true) + (x.kind ? ' <span style="color:var(--muted);font-size:13px">' + esc(x.kind) + '</span>' : '') + '</div></div>';
+      }).join('') + '</section>';
+  }
+
+  function archiveBody(data, items, v) {
+    var all = items.filter(function (x) { return itemTab(x) === ARCHIVE_TAB; });
+    var schools = uniq((data.schools || []).map(function (s) { return s.name || s; }).concat(all.map(function (x) { return x.school; })));
+    var subjects = SUBJECTS.filter(function (s) { return all.some(function (x) { return x.subject === s; }); })
+      .concat(uniq(all.map(function (x) { return x.subject; })).filter(function (s) { return SUBJECTS.indexOf(s) < 0; }));
+    // 학년 줄 : 1학년, 2학년, 3학년 순 (항목의 "grade")
+    var grades = uniq(all.map(function (x) { return x.grade; })).sort(function (a, b) { return (parseInt(a, 10) || 9) - (parseInt(b, 10) || 9); });
+    // 학교 · 학년 · 과목 줄은 서로 겹쳐 거른다. 줄마다 숫자는 '다른 줄에서 고른 것' 안에서 센다
+    var KEYS = ['school', 'grade', 'subject'];
+    var match = function (x, skip) { return KEYS.every(function (k) { return k === skip || !v[k] || x[k] === v[k]; }); };
+    var list = all.filter(function (x) { return match(x); });
+    var row = function (key, opts, label) {
+      var base = all.filter(function (x) { return match(x, key); });
+      return '<p class="mls-rowlabel">' + label + '</p><div class="mls-filter" style="margin-top:4px">' + [''].concat(opts).map(function (o) {
+        var n = o ? base.filter(function (x) { return x[key] === o; }).length : base.length;
+        return '<button type="button" data-' + key + '="' + esc(o) + '" aria-pressed="' + ((v[key] || '') === o) + '">' + (o ? esc(o) : '전체') + ' <span style="opacity:.6;font-size:12px">' + n + '</span></button>';
+      }).join('') + '</div>';
+    };
+    var open = v.open ? all.filter(function (x) { return (x.id || x.title) === v.open; })[0] : null;
+    var detail = open ? '<div class="mls-detail" id="mls-detail"><button type="button" class="mls-back" data-open="">← 목록</button>' +
+      '<h5>' + esc(open.title || '') + '</h5><div>' + [open.school, open.grade, open.subject, open.diff, idx(open) !== null ? '지수 ' + idx(open) : '', open.kind]
+        .filter(Boolean).map(function (t) { return '<span class="mls-tag">' + esc(t) + '</span>'; }).join('') + '</div><div class="mls-body" id="mls-detail-body" data-id="' + esc(open._k || open.id || '') + '"></div></div>' : '';
+    var body = !list.length ? '<p class="mls-empty" style="margin-top:14px">' + ([v.school, v.grade, v.subject].filter(Boolean).length ? esc([v.school, v.grade, v.subject].filter(Boolean).join(' · ')) + ' 자료는 아직 비어 있어요.' : '아직 정리한 기출이 없어요.') + '</p>'
+      : v.view === 'level' ? byLevel(list) : v.view === 'index' ? byRank(list, v.hard !== false) : byExam(list);
+    return '<div class="mls-hero"><h4>' + esc(ARCHIVE_TAB) + ' 아카이브</h4><p>학교 기출과 대비 문항을 시험별·난이도별로 모아 두는 곳. 번호를 누르면 풀이가 열려요.</p>' +
+      '<div class="mls-stats"><div class="mls-stat"><span>정리한 문항</span><b>' + list.length + '</b></div>' +
+      '<div class="mls-stat"><span>시험 회차</span><b>' + uniq(list.map(examOf)).length + '</b></div>' +
+      '<div class="mls-stat"><span>킬러 문항</span><b>' + list.filter(function (x) { return lvOf(x) === 'killer'; }).length + '</b></div></div>' +
+      '<div class="mls-legend"><span><i style="background:#2f6f5e"></i>일반</span><span><i style="background:#b8860b"></i>준킬러</span><span><i style="background:#c0392b"></i>킬러</span></div></div>' +
+      row('school', schools, '학교') + (grades.length ? row('grade', grades, '학년') : '') + (subjects.length ? row('subject', subjects, '과목') : '') +
+      '<div class="mls-views" role="tablist">' + [['exam', '시험별'], ['level', '난이도별'], ['index', '지수순']].map(function (p) {
+        return '<button type="button" role="tab" data-view="' + p[0] + '" aria-selected="' + ((v.view || 'exam') === p[0]) + '">' + p[1] + '</button>';
+      }).join('') + '</div>' + detail + body;
+  }
+
+  function render(data) {
+    var items = data.items || [];
+    var tabs = (data.tabs || TABS).slice();
+    items.forEach(function (x) { if (tabs.indexOf(itemTab(x)) < 0) tabs.push(itemTab(x)); });
+    var bar = '<div class="mls-tabs" role="tablist">' + tabs.map(function (t, i) {
+      var n = items.filter(function (x) { return itemTab(x) === t; }).length;
+      return '<button type="button" role="tab" data-tab="' + i + '" aria-selected="' + (i === 0) + '">' + esc(t) + '<small>' + n + '</small></button>';
+    }).join('') + '</div><div id="mls-tab"></div>';
+    $('mls-open').innerHTML = '<div class="mls-top"><h3>비밀 폴더</h3><button type="button" id="mls-close">잠그기</button></div>' + bar;
+    var view = { school: '', grade: '', subject: '', view: 'exam', hard: true, open: '' };
+    var show = function (i) {
+      [].forEach.call($('mls-open').querySelectorAll('.mls-tabs button'), function (b) { b.setAttribute('aria-selected', String(+b.dataset.tab === i)); });
+      $('mls-tab').innerHTML = tabs[i] === ARCHIVE_TAB ? archiveBody(data, items, view) : tabBody(items, tabs[i]);
+      var on = function (attr, fn) { [].forEach.call($('mls-tab').querySelectorAll('[' + attr + ']'), function (b) { b.onclick = function () { fn(b.getAttribute(attr)); show(i); }; }); };
+      on('data-school', function (v) { view.school = v; view.open = ''; });
+      on('data-grade', function (v) { view.grade = v; view.open = ''; });
+      on('data-subject', function (v) { view.subject = v; view.open = ''; });
+      on('data-view', function (v) { view.view = v; });
+      on('data-order', function () { view.hard = !view.hard; });
+      on('data-open', function (v) { view.open = v; });
+      if (view.open && $('mls-detail')) { loadBody($('mls-detail-body').getAttribute('data-id'), $('mls-detail-body')); $('mls-detail').scrollIntoView({ block: 'start' }); }
+      [].forEach.call($('mls-tab').querySelectorAll('details[data-load]'), function (d) {
+        d.addEventListener('toggle', function () { if (d.open) loadBody(d.getAttribute('data-load'), d.querySelector('.mls-body')); });
+      });
+      if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([$('mls-tab')]);
+    };
+    [].forEach.call($('mls-open').querySelectorAll('.mls-tabs button'), function (b) { b.onclick = function () { show(+b.dataset.tab); }; });
+    show(0);
+    $('mls-lock').hidden = true;
+    $('mls-open').hidden = false;
+    $('mls-close').onclick = function () { $('mls-open').innerHTML = ''; $('mls-open').hidden = true; $('mls-lock').hidden = false; $('mls-pw').value = ''; $('mls-msg').textContent = ''; };
+  }
+
+  $('mls-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var pw = $('mls-pw').value;
+    if (!pw) return;
+    $('mls-go').disabled = true;
+    $('mls-msg').className = 'mls-msg';
+    $('mls-msg').textContent = '여는 중…';
+    decrypt(pw).then(render).catch(function () {
+      $('mls-msg').className = 'mls-msg err';
+      $('mls-msg').textContent = PRIV ? '자료를 여는 중에 문제가 생겼어요. 새로고침해 보세요.' : '비밀번호가 맞지 않거나 금고에 연결하지 못했어요.';
+    }).then(function () { $('mls-go').disabled = false; });
+  });
+})();
+</script>
