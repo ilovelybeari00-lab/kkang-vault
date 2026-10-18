@@ -102,10 +102,17 @@
 (function () {
   var VAULT = "https://raw.githubusercontent.com/ilovelybeari00-lab/kkang-vault/main/";   // 금고 주소 (keys.json, index.json, items/<id>.json)
   // 탭: items.json의 "tabs"가 있으면 그 순서, 없으면 아래 기본값. 항목은 "tab"(없으면 예전 "kind")으로 탭을 고르고, "group"으로 탭 안 폴더를 나눈다
-  var TABS = ['수지기출', '자작문제', '시험지', '풀이', '학생용'];
-  // 아카이브로 보여 줄 탭: 항목의 "school"로 학교 화면을 나누고, "term"(예: 2026 2학기 중간)으로 묶는다.
-  // 학교 목록은 items.json의 "schools"(자료가 없어도 학교 화면이 생김) + 항목에 적힌 학교.
-  var ARCHIVE_TAB = '수지기출';
+  var TABS = ['수지기출', '강남기출', '사설모의', '학생용', '자작문제'];
+  // 탭마다 아카이브(학교·학년·과목 줄 + 시험별·난이도별·지수순)로 보여 준다. 금고 설정의 "plain"에 적은 탭만 예전 목록 모양.
+  // 학교 줄 목록은 금고 설정 "schools"({탭: [학교…]}, 예전 꼴 [학교…]는 수지기출 것) + 항목에 적힌 학교.
+  var ABOUT = {
+    '수지기출': '수지 지역 학교 기출과 대비 문항을 시험별·난이도별로 모아 두는 곳.',
+    '강남기출': '강남 지역 학교 기출을 시험별·난이도별로 모아 두는 곳.',
+    '사설모의': '사설 모의고사 문항을 회차별·난이도별로 모아 두는 곳.',
+    '학생용': '학생에게 내줄 문항과 자료를 모아 두는 곳.',
+    '자작문제': '직접 만든 문항을 난이도별로 모아 두는 곳.'
+  };
+  var ROW_LABEL = { '사설모의': '출제처' };
   var $ = function (id) { return document.getElementById(id); };
   var b64 = function (s) { return Uint8Array.from(atob(s), function (c) { return c.charCodeAt(0); }); };
   var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
@@ -144,7 +151,7 @@
       }).then(function (priv) {
         PRIV = priv;
         return Promise.all([idx.cfg ? openBox(idx.cfg) : {}, Promise.all(idx.items.map(openBox))]);
-      }).then(function (r2) { LABELS = r2[0].labels || {}; return { tabs: r2[0].tabs, schools: r2[0].schools, labels: LABELS, items: r2[1] }; });
+      }).then(function (r2) { var c = r2[0] || {}; LABELS = c.labels || {}; return { tabs: c.tabs, schools: c.schools, labels: LABELS, plain: c.plain, about: c.about, rowLabel: c.rowLabel, items: r2[1] }; });
     });
   }
   // 풀이 HTML 받아 오기 (한 번 연 것은 기억)
@@ -233,9 +240,15 @@
       }).join('') + '</section>';
   }
 
-  function archiveBody(data, items, v) {
-    var all = items.filter(function (x) { return itemTab(x) === ARCHIVE_TAB; });
-    var schools = uniq((data.schools || []).map(function (s) { return s.name || s; }).concat(all.map(function (x) { return x.school; })));
+  function schoolsFor(data, tab) {
+    var cfg = data.schools || [];
+    var list = Array.isArray(cfg) ? (tab === '수지기출' ? cfg : []) : (cfg[tab] || []);
+    return list.map(function (s) { return s.name || s; });
+  }
+
+  function archiveBody(data, items, v, tab) {
+    var all = items.filter(function (x) { return itemTab(x) === tab; });
+    var schools = uniq(schoolsFor(data, tab).concat(all.map(function (x) { return x.school; })));
     var subjects = SUBJECTS.filter(function (s) { return all.some(function (x) { return x.subject === s; }); })
       .concat(uniq(all.map(function (x) { return x.subject; })).filter(function (s) { return SUBJECTS.indexOf(s) < 0; }));
     // 학년 줄 : 1학년, 2학년, 3학년 순 (항목의 "grade")
@@ -259,14 +272,15 @@
     var detail = open ? '<div class="mls-detail" id="mls-detail"><button type="button" class="mls-back" data-open="">← 목록</button>' +
       '<h5>' + esc(open.title || '') + '</h5><div>' + [L(open.school), open.grade, open.subject, open.diff, idx(open) !== null ? '지수 ' + idx(open) : '', open.kind]
         .filter(Boolean).map(function (t) { return '<span class="mls-tag">' + esc(t) + '</span>'; }).join('') + '</div><div class="mls-body" id="mls-detail-body" data-id="' + esc(open._k || open.id || '') + '"></div></div>' : '';
-    var body = !list.length ? '<p class="mls-empty" style="margin-top:14px">' + ([v.school, v.grade, v.subject].filter(Boolean).length ? esc([v.school, v.grade, v.subject].filter(Boolean).join(' · ')) + ' 자료는 아직 비어 있어요.' : '아직 정리한 기출이 없어요.') + '</p>'
+    var body = !list.length ? '<p class="mls-empty" style="margin-top:14px">' + ([v.school, v.grade, v.subject].filter(Boolean).length ? esc([v.school, v.grade, v.subject].filter(Boolean).join(' · ')) + ' 자료는 아직 비어 있어요.' : '아직 정리한 문항이 없어요. 자료가 들어오면 여기에 시험별로 쌓여요.') + '</p>'
       : v.view === 'level' ? byLevel(list) : v.view === 'index' ? byRank(list, v.hard !== false) : byExam(list);
-    return '<div class="mls-hero"><h4>' + esc(L(ARCHIVE_TAB)) + ' 아카이브</h4><p>학교 기출과 대비 문항을 시험별·난이도별로 모아 두는 곳. 번호를 누르면 풀이가 열려요.</p>' +
+    var about = ((data.about || {})[tab]) || ABOUT[tab] || '문항을 시험별·난이도별로 모아 두는 곳.';
+    return '<div class="mls-hero"><h4>' + esc(L(tab)) + ' 아카이브</h4><p>' + esc(about) + ' 번호를 누르면 풀이가 열려요.</p>' +
       '<div class="mls-stats"><div class="mls-stat"><span>정리한 문항</span><b>' + list.length + '</b></div>' +
       '<div class="mls-stat"><span>시험 회차</span><b>' + uniq(list.map(examOf)).length + '</b></div>' +
       '<div class="mls-stat"><span>킬러 문항</span><b>' + list.filter(function (x) { return lvOf(x) === 'killer'; }).length + '</b></div></div>' +
       '<div class="mls-legend"><span><i style="background:#2f6f5e"></i>일반</span><span><i style="background:#b8860b"></i>준킬러</span><span><i style="background:#c0392b"></i>킬러</span></div></div>' +
-      row('school', schools, '학교') + (grades.length ? row('grade', grades, '학년', true) : '') + (subjects.length ? row('subject', subjects, '과목', true) : '') +
+      (schools.length ? row('school', schools, ((data.rowLabel || {})[tab]) || ROW_LABEL[tab] || '학교') : '') + (grades.length ? row('grade', grades, '학년', true) : '') + (subjects.length ? row('subject', subjects, '과목', true) : '') +
       '<div class="mls-views" role="tablist">' + [['exam', '시험별'], ['level', '난이도별'], ['index', '지수순']].map(function (p) {
         return '<button type="button" role="tab" data-view="' + p[0] + '" aria-selected="' + ((v.view || 'exam') === p[0]) + '">' + p[1] + '</button>';
       }).join('') + '</div>' + detail + body;
@@ -281,10 +295,11 @@
       return '<button type="button" role="tab" data-tab="' + i + '" aria-selected="' + (i === 0) + '">' + esc(L(t)) + '<small>' + n + '</small></button>';
     }).join('') + '</div><div id="mls-tab"></div>';
     $('mls-open').innerHTML = '<div class="mls-top"><h3>비밀 폴더</h3><button type="button" id="mls-close">잠그기</button></div>' + bar;
-    var view = { school: '', grade: '', subject: '', view: 'exam', hard: true, open: '' };
+    var views = {}, plain = data.plain || [];
     var show = function (i) {
+      var view = views[tabs[i]] = views[tabs[i]] || { school: '', grade: '', subject: '', view: 'exam', hard: true, open: '' };
       [].forEach.call($('mls-open').querySelectorAll('.mls-tabs button'), function (b) { b.setAttribute('aria-selected', String(+b.dataset.tab === i)); });
-      $('mls-tab').innerHTML = tabs[i] === ARCHIVE_TAB ? archiveBody(data, items, view) : tabBody(items, tabs[i]);
+      $('mls-tab').innerHTML = plain.indexOf(tabs[i]) < 0 ? archiveBody(data, items, view, tabs[i]) : tabBody(items, tabs[i]);
       var on = function (attr, fn) { [].forEach.call($('mls-tab').querySelectorAll('[' + attr + ']'), function (b) { b.onclick = function () { fn(b.getAttribute(attr)); show(i); }; }); };
       on('data-school', function (v) { view.school = v; view.open = ''; });
       on('data-grade', function (v) { view.grade = v; view.open = ''; });
