@@ -190,9 +190,14 @@
     { code: 'K3', name: '킬러 3단계', color: '#c0392b' }, { code: 'K2', name: '킬러 2단계', color: '#d0533f' },
     { code: 'K1', name: '킬러 1단계', color: '#dc6e55' }, { code: 'J3', name: '준킬러 3단계', color: '#9a6f05' },
     { code: 'J2', name: '준킬러 2단계', color: '#b8860b' }, { code: 'J1', name: '준킬러 1단계', color: '#cfa23a' },
-    { code: '', name: '기본', color: '#2f6f5e' }
+    { code: 'N5', name: '노말 5단계', color: '#2f6f5e' }, { code: 'N4', name: '노말 4단계', color: '#3d8270' },
+    { code: 'N3', name: '노말 3단계', color: '#4f9482' }, { code: 'N2', name: '노말 2단계', color: '#66a694' },
+    { code: 'N1', name: '노말 1단계', color: '#80b8a7' }, { code: '', name: '기본 (지수 없음)', color: '#7a8a86' }
   ];
-  var lvOf = function (x) { return (x.diff || '').charAt(0) === 'K' ? 'killer' : (x.diff || '').charAt(0) === 'J' ? 'semi' : ''; };
+  // 단계 칸(diff)이 비어 있으면 지수 구간으로 정한다 (docs/difficulty-scale.md — 노말 N1~N5는 지수 0~29)
+  var bandOf = function (i) { return i >= 95 ? 'K5' : i >= 88 ? 'K4' : i >= 78 ? 'K3' : i >= 70 ? 'K2' : i >= 60 ? 'K1' : i >= 50 ? 'J3' : i >= 40 ? 'J2' : i >= 30 ? 'J1' : i >= 24 ? 'N5' : i >= 18 ? 'N4' : i >= 12 ? 'N3' : i >= 6 ? 'N2' : 'N1'; };
+  var codeOf = function (x) { return x.diff || (typeof x.index === 'number' ? bandOf(x.index) : ''); };
+  var lvOf = function (x) { return codeOf(x).charAt(0) === 'K' ? 'killer' : codeOf(x).charAt(0) === 'J' ? 'semi' : ''; };
   var yearOf = function (x) { return +x.year || +(String(x.exam || x.term || '').match(/\d{4}/) || [0])[0]; };
   var examOf = function (x) { return x.exam || x.term || '기타'; };
   var idx = function (x) { return typeof x.index === 'number' ? x.index : null; };
@@ -222,7 +227,7 @@
 
   function byLevel(list) {
     return '<section class="mls-year"><h5>난이도 높은 순<small>' + list.length + '문항</small></h5>' + LEVELS.map(function (lv) {
-      var l = list.filter(function (x) { return (x.diff || '') === lv.code; }).sort(byIndex);
+      var l = list.filter(function (x) { return codeOf(x) === lv.code; }).sort(byIndex);
       if (!l.length) return '';
       return '<div class="mls-exam"><div class="mls-exam-name"><span class="mls-lv" style="background:' + lv.color + '">' + (lv.code || '기본') + '</span>' + lv.name + '</div>' +
         '<div class="mls-chips">' + l.map(function (x) { return chip(x, true); }).join('') + '</div></div>';
@@ -234,7 +239,7 @@
     if (!hardFirst) l.reverse();
     return '<section class="mls-year"><h5>난이도 지수 ' + (hardFirst ? '높은' : '낮은') + ' 순<button type="button" class="mls-order" data-order="1">' +
       (hardFirst ? '쉬운 것부터 보기' : '어려운 것부터 보기') + '</button></h5>' + l.map(function (x) {
-        var lv = LEVELS.filter(function (v) { return v.code === (x.diff || ''); })[0] || LEVELS[LEVELS.length - 1];
+        var lv = LEVELS.filter(function (v) { return v.code === codeOf(x); })[0] || LEVELS[LEVELS.length - 1];
         return '<div class="mls-rank"><span>' + idx(x) + '</span><div><span class="mls-lv" style="background:' + lv.color + '">' + (lv.code || '기본') + '</span>' +
           chip(x, true, true) + (x.kind ? ' <span style="color:var(--muted);font-size:13px">' + esc(x.kind) + '</span>' : '') + '</div></div>';
       }).join('') + '</section>';
