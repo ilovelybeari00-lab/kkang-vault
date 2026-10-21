@@ -18,6 +18,7 @@
   .mls-form { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
   .mls-form input { font-size:18px; letter-spacing:.2em; text-align:center; width:200px; max-width:100%; padding:10px 12px; border:2px solid var(--line); border-radius:12px; background:#fff; color:var(--ink); }
   .mls-form input:focus { outline:none; border-color:var(--accent); }
+  .mls-keep { display:block; margin-top:10px; font-size:13px; color:var(--muted, #666); }
   .mls button { font-size:17px; background:var(--accent); color:#fff; border:0; border-radius:12px; padding:10px 20px; cursor:pointer; }
   .mls button:disabled { opacity:.6; cursor:wait; }
   .mls-msg { min-height:1.6em; margin-top:10px; font-size:14px; }
@@ -93,6 +94,7 @@
       <input id="mls-pw" type="password" autocomplete="current-password" placeholder="••••">
       <button type="submit" id="mls-go">열기</button>
     </form>
+    <label class="mls-keep"><input type="checkbox" id="mls-keep" checked> 이 기기에서 12시간 동안 다시 묻지 않기</label>
     <div class="mls-msg" id="mls-msg" role="status"></div>
   </div>
   <div id="mls-open" hidden></div>
@@ -152,9 +154,44 @@
         return crypto.subtle.importKey('jwk', JSON.parse(new TextDecoder().decode(buf)), { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
       }).then(function (priv) {
         PRIV = priv;
-        return Promise.all([idx.cfg ? openBox(idx.cfg) : {}, Promise.all(idx.items.map(openBox))]);
-      }).then(function (r2) { var c = r2[0] || {}; LABELS = c.labels || {}; return { tabs: c.tabs, schools: c.schools, labels: LABELS, plain: c.plain, about: c.about, rowLabel: c.rowLabel, items: r2[1] }; });
+        return openIndex(idx);
+      });
     });
+  }
+  function openIndex(idx) {
+    return Promise.all([idx.cfg ? openBox(idx.cfg) : {}, Promise.all(idx.items.map(openBox))])
+      .then(function (r2) { var c = r2[0] || {}; LABELS = c.labels || {}; return { tabs: c.tabs, schools: c.schools, labels: LABELS, plain: c.plain, about: c.about, rowLabel: c.rowLabel, items: r2[1] }; });
+  }
+  // ── 잠시 기억하기: 비밀번호가 아니라 풀린 열쇠(CryptoKey, 꺼낼 수 없음)를 이 기기의 IndexedDB에 12시간 둔다 ──
+  // '잠그기'를 누르거나 12시간이 지나면 지운다. 저장소가 막힌 브라우저(사생활 보호 창 등)에서는 조용히 매번 묻는다.
+  var KEEP_MS = 12 * 3600 * 1000;
+  function kdb() {
+    return new Promise(function (ok, no) {
+      try {
+        var r = indexedDB.open('mls-vault', 1);
+        r.onupgradeneeded = function () { r.result.createObjectStore('k'); };
+        r.onsuccess = function () { ok(r.result); };
+        r.onerror = function () { no(r.error); };
+      } catch (e) { no(e); }
+    });
+  }
+  function kstore(mode, fn) {
+    return kdb().then(function (db) {
+      return new Promise(function (ok, no) {
+        var t = db.transaction('k', mode), q = fn(t.objectStore('k'));
+        t.oncomplete = function () { ok(q && q.result); };
+        t.onerror = function () { no(t.error); };
+      });
+    });
+  }
+  function keepKey(priv) { return kstore('readwrite', function (st) { return st.put({ priv: priv, until: Date.now() + KEEP_MS, vault: VAULT }, 'priv'); }).catch(function () {}); }
+  function forgetKey() { return kstore('readwrite', function (st) { return st.delete('priv'); }).catch(function () {}); }
+  function recallKey() {
+    return kstore('readonly', function (st) { return st.get('priv'); }).then(function (v) {
+      if (v && v.priv && v.until > Date.now() && v.vault === VAULT) return v.priv;
+      if (v) forgetKey();
+      return null;
+    }).catch(function () { return null; });
   }
   // 풀이 HTML 받아 오기 (한 번 연 것은 기억)
   function loadBody(id, el) {
@@ -382,7 +419,7 @@
     };
     $('mls-lock').hidden = true;
     $('mls-open').hidden = false;
-    $('mls-close').onclick = function () { $('mls-open').innerHTML = ''; $('mls-open').hidden = true; $('mls-lock').hidden = false; $('mls-pw').value = ''; $('mls-msg').textContent = ''; };
+    $('mls-close').onclick = function () { forgetKey(); PRIV = null; $('mls-open').innerHTML = ''; $('mls-open').hidden = true; $('mls-lock').hidden = false; $('mls-pw').value = ''; $('mls-msg').textContent = ''; };
   }
 
   $('mls-form').addEventListener('submit', function (e) {
@@ -392,10 +429,19 @@
     $('mls-go').disabled = true;
     $('mls-msg').className = 'mls-msg';
     $('mls-msg').textContent = '여는 중…';
-    decrypt(pw).then(render).catch(function () {
+    decrypt(pw).then(function (data) { if ($('mls-keep').checked) keepKey(PRIV); else forgetKey(); render(data); }).catch(function () {
       $('mls-msg').className = 'mls-msg err';
       $('mls-msg').textContent = PRIV ? '자료를 여는 중에 문제가 생겼어요. 새로고침해 보세요.' : '비밀번호가 맞지 않거나 금고에 연결하지 못했어요.';
     }).then(function () { $('mls-go').disabled = false; });
   });
+
+  // 열 때 기억해 둔 열쇠가 있으면 비밀번호 없이 바로 연다 (실패하면 잊고 평소처럼 묻는다)
+  recallKey().then(function (priv) {
+    if (!priv) return;
+    $('mls-msg').className = 'mls-msg';
+    $('mls-msg').textContent = '여는 중…';
+    PRIV = priv;
+    return get('index.json').then(openIndex).then(render).then(function () { $('mls-msg').textContent = ''; });
+  }).catch(function () { PRIV = null; forgetKey(); $('mls-msg').textContent = ''; });
 })();
 </script>
