@@ -34,10 +34,10 @@
   .mls-body { padding:10px 0 4px; overflow-x:auto; }
   .mls-body img { max-width:100%; border-radius:10px; }
   .mls-empty { color:var(--muted); background:var(--soft); border-radius:14px; padding:18px; text-align:center; }
-  .mls-tabs { display:flex; gap:6px; flex-wrap:wrap; border-bottom:2px solid var(--accent); margin:10px 0 4px; }
-  .mls-tabs button { background:var(--soft); color:var(--ink); border-radius:12px 12px 0 0; padding:8px 16px; font-size:16px; }
-  .mls-tabs button[aria-selected="true"] { background:var(--accent); color:#fff; }
-  .mls-tabs button small { opacity:.75; margin-left:4px; font-size:13px; }
+  .mls-tabs, .mls-stabs { display:flex; gap:6px; flex-wrap:wrap; border-bottom:2px solid var(--accent); margin:10px 0 4px; }
+  .mls-tabs button, .mls-stabs button { background:var(--soft); color:var(--ink); border-radius:12px 12px 0 0; padding:8px 16px; font-size:16px; }
+  .mls-tabs button[aria-selected="true"], .mls-stabs button[aria-selected="true"] { background:var(--accent); color:#fff; }
+  .mls-tabs button small, .mls-stabs button small { opacity:.75; margin-left:4px; font-size:13px; }
   /* 수지기출 아카이브: 전체 아카이브 → 학교별 화면 */
   .mls-hero { padding:12px 0 4px; }
   .mls-hero h4 { font-size:22px !important; margin:0 0 4px; }
@@ -267,6 +267,28 @@
     }).join('');
   }
 
+  // ── 회차별: 시험 회차(예: 2025 2학기 기말 = 2학기 2차)를 고르면 그 회차를 본 학교만 탭으로 나온다 ──
+  // 학교 탭 줄은 .mls-stabs (맨 위 폴더 탭 .mls-tabs와 클릭 처리가 섞이지 않게 이름을 따로)
+  var sessionName = function (e) { return String(e).replace(/중간(고사)?$/, '1차 (중간)').replace(/기말(고사)?$/, '2차 (기말)'); };
+  var schoolOf = function (x) { return x.school || '학교 미상'; };
+  function bySession(list, v) {
+    var exams = uniq(list.map(examOf)).sort().reverse();
+    if (exams.indexOf(v.session) < 0) v.session = exams[0];
+    var inE = list.filter(function (x) { return examOf(x) === v.session; });
+    var schools = uniq(inE.map(schoolOf));
+    if (schools.indexOf(v.sschool) < 0) v.sschool = schools[0];
+    var l = inE.filter(function (x) { return schoolOf(x) === v.sschool; }).sort(function (a, b) { return noKey(a) - noKey(b); });
+    return '<p class="mls-rowlabel" style="margin-top:14px">시험 회차</p><div class="mls-filter" style="margin-top:4px">' + exams.map(function (e) {
+        return '<button type="button" data-session="' + esc(e) + '" aria-pressed="' + (e === v.session) + '">' + esc(sessionName(e)) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="mls-stabs" role="tablist">' + schools.map(function (s) {
+        var n = inE.filter(function (x) { return schoolOf(x) === s; }).length;
+        return '<button type="button" role="tab" data-sschool="' + esc(s) + '" aria-selected="' + (s === v.sschool) + '">' + esc(L(s)) + '<small>' + n + '</small></button>';
+      }).join('') + '</div>' +
+      '<section class="mls-year"><h5>' + esc(L(v.sschool)) + ' · ' + esc(sessionName(v.session)) + '<small>' + l.length + '문항</small></h5>' +
+      '<div class="mls-chips">' + l.map(function (x) { return chip(x); }).join('') + '</div></section>';
+  }
+
   function byLevel(list) {
     return '<section class="mls-year"><h5>난이도 높은 순<small>' + list.length + '문항</small></h5>' + LEVELS.map(function (lv) {
       var l = list.filter(function (x) { return codeOf(x) === lv.code; }).sort(byIndex);
@@ -363,7 +385,7 @@
         .filter(Boolean).map(function (t) { return '<span class="mls-tag">' + esc(t) + '</span>'; }).join('') + '</div>' +
       (open.evolve ? '<p class="mls-rowlabel">학프에서 바뀐 점 — ' + esc(open.evolve) + '</p>' : '') + '<div class="mls-body" id="mls-detail-body" data-id="' + esc(open._k || open.id || '') + '"></div></div>' : '';
     var body = !list.length ? '<p class="mls-empty" style="margin-top:14px">' + ([v.school, v.grade, v.subject].filter(Boolean).length ? esc([v.school, v.grade, v.subject].filter(Boolean).join(' · ')) + ' 자료는 아직 비어 있어요.' : '아직 정리한 문항이 없어요. 자료가 들어오면 여기에 시험별로 쌓여요.') + '</p>'
-      : v.view === 'level' ? byLevel(list) : v.view === 'index' ? byRank(list, v.hard !== false) : v.view === 'stem' ? byStem(list, items, tab) : v.view === 'type' ? byType(list) : byExam(list);
+      : v.view === 'level' ? byLevel(list) : v.view === 'index' ? byRank(list, v.hard !== false) : v.view === 'stem' ? byStem(list, items, tab) : v.view === 'type' ? byType(list) : v.view === 'session' ? bySession(list, v) : byExam(list);
     var about = ((data.about || {})[tab]) || ABOUT[tab] || '문항을 시험별·난이도별로 모아 두는 곳.';
     return '<div class="mls-hero"><h4>' + esc(L(tab)) + ' 아카이브</h4><p>' + esc(about) + ' 번호를 누르면 풀이가 열려요.</p>' +
       '<div class="mls-stats"><div class="mls-stat"><span>정리한 문항</span><b>' + list.length + '</b></div>' +
@@ -372,7 +394,7 @@
       '<div class="mls-legend"><span><i style="background:#2f6f5e"></i>일반</span><span><i style="background:#b8860b"></i>준킬러</span><span><i style="background:#c0392b"></i>킬러</span></div>' +
       '<p class="mls-rowlabel" style="line-height:1.7">성격 — <b>발상형</b> 떠올릴 발상 하나가 열쇠 · <b>번역형</b> 조건을 식으로 옮기는 게 어려움 · <b>경우형</b> 경우를 나눠 세는 게 어려움 · <b>계산형</b> 끝까지 계산해야 함<br>단계 — 노말(기본) → 준킬러 1~3 → 킬러 1~5, 같은 단계 안은 지수(0~100, 높을수록 어려움)</p></div>' +
       (schools.length ? row('school', schools, ((data.rowLabel || {})[tab]) || ROW_LABEL[tab] || '학교') : '') + (grades.length ? row('grade', grades, '학년', true) : '') + (subjects.length ? row('subject', subjects, '과목', true) : '') +
-      '<div class="mls-views" role="tablist">' + [['exam', '시험별'], ['level', '난이도별'], ['index', '지수순'], ['type', '유형별'], ['stem', '줄기']].map(function (p) {
+      '<div class="mls-views" role="tablist">' + [['exam', '시험별'], ['session', '회차별'], ['level', '난이도별'], ['index', '지수순'], ['type', '유형별'], ['stem', '줄기']].map(function (p) {
         return '<button type="button" role="tab" data-view="' + p[0] + '" aria-selected="' + ((v.view || 'exam') === p[0]) + '">' + p[1] + '</button>';
       }).join('') + '</div>' + detail + body;
   }
@@ -397,6 +419,8 @@
       on('data-grade', function (v) { view.grade = v; view.open = ''; });
       on('data-subject', function (v) { view.subject = v; view.open = ''; });
       on('data-view', function (v) { view.view = v; });
+      on('data-session', function (v) { view.session = v; view.sschool = ''; view.open = ''; });
+      on('data-sschool', function (v) { view.sschool = v; view.open = ''; });
       on('data-order', function () { view.hard = !view.hard; });
       on('data-open', function (v) { view.open = v; });
       if (view.open && $('mls-detail')) { loadBody($('mls-detail-body').getAttribute('data-id'), $('mls-detail-body')); $('mls-detail').scrollIntoView({ block: 'start' }); }
