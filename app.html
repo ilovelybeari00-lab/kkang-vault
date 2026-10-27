@@ -131,6 +131,8 @@
   var PRIV = null, BODY = {};
   // 보이는 이름 바꾸기 : 금고 설정(잠긴 cfg)의 labels {원래 이름: 보이는 이름}. 자료에 적힌 이름은 그대로 두고 화면에서만 바꾼다
   var LABELS = {};
+  // 학교 이름 바꾸기 (예전 이름 → 새 이름). 금고에 예전 이름으로 잠긴 항목도 화면에서는 새 이름으로 합친다 — 사용자 결정 2026-10-27
+  var RENAME = { '흥천고': '홍천고' };
   var L = function (name) { return LABELS[name] || name; };
   var get = function (p) { return fetch(VAULT + p + '?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(p); return r.json(); }); };
   var INFO = new TextEncoder().encode('kkang-vault-v1');
@@ -166,7 +168,14 @@
   }
   function openIndex(idx) {
     return Promise.all([idx.cfg ? openBox(idx.cfg) : {}, Promise.all(idx.items.map(openBox))])
-      .then(function (r2) { var c = r2[0] || {}; LABELS = c.labels || {}; return { tabs: c.tabs, schools: c.schools, labels: LABELS, plain: c.plain, about: c.about, rowLabel: c.rowLabel, items: r2[1] }; });
+      .then(function (r2) {
+        var c = r2[0] || {}; LABELS = c.labels || {};
+        // 학교 이름을 바꾼 항목(예전 이름으로 잠긴 것)은 새 이름으로 합쳐 보인다
+        r2[1].forEach(function (x) { if (!x) return; Object.keys(RENAME).forEach(function (a) { if (x.school === a) x.school = RENAME[a]; if (x.title) x.title = String(x.title).split(a).join(RENAME[a]); }); });
+        var schools = c.schools;
+        if (schools) schools = JSON.parse(JSON.stringify(schools).replace(/"([^"]+)"/g, function (m, k) { return RENAME[k] ? '"' + RENAME[k] + '"' : m; }));
+        return { tabs: c.tabs, schools: schools, labels: LABELS, plain: c.plain, about: c.about, rowLabel: c.rowLabel, items: r2[1] };
+      });
   }
   // ── 잠시 기억하기: 비밀번호가 아니라 풀린 열쇠(CryptoKey, 꺼낼 수 없음)를 이 기기의 IndexedDB에 12시간 둔다 ──
   // '잠그기'를 누르거나 12시간이 지나면 지운다. 저장소가 막힌 브라우저(사생활 보호 창 등)에서는 조용히 매번 묻는다.
